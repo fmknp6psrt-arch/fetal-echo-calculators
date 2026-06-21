@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pediatric Echo Measurements &amp; Z-Scores — fetal-echo.org</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <style>
 :root{
   --bg:#f6f8fb; --card:#ffffff; --ink:#1d2733; --muted:#5b6b7c; --line:#e5ebf2;
@@ -149,9 +150,13 @@ footer{font-size:11.5px;color:var(--muted);text-align:center;margin-top:10px}
 </a>
 <header class="app noprint">
   <div class="logo">PE</div>
-  <div>
+  <div style="flex:1">
     <h1>Pediatric Echo Measurements &amp; Z-Scores <span class="sub" style="display:inline">v1.0</span></h1>
     <p class="sub">M-mode · Coronaries · 2D structures · Function · evidence-anchored reference ranges · fetal-echo.org</p>
+  </div>
+  <div style="flex:0 0 auto;text-align:center;margin-left:10px">
+    <div id="_qrped" style="border-radius:6px;border:1px solid var(--line);width:72px;height:72px;overflow:hidden;background:#fff;display:block"></div>
+    <p style="font-size:9px;color:var(--muted);margin:3px 0 0">fetal-echo.org</p>
   </div>
 </header>
 
@@ -416,14 +421,13 @@ footer{font-size:11.5px;color:var(--muted);text-align:center;margin-top:10px}
 <footer class="noprint" style="padding:18px 0 22px;border-top:1px solid var(--line);margin-top:18px">
   <div style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;margin-bottom:8px">
     <div style="text-align:center">
-      <div id="qr-footer" style="width:72px;height:72px;margin:0 auto;background:var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center">
-        <span style="font-size:9px;color:var(--muted)">QR</span>
-      </div>
+      <div id="qr-footer" style="width:72px;height:72px;margin:0 auto;border-radius:6px;overflow:hidden;background:#fff;border:1px solid var(--line)"></div>
       <div style="font-size:9px;margin-top:4px;color:var(--muted)">Scan to open calculator</div>
     </div>
     <div style="text-align:left;line-height:1.7">
       <div style="font-weight:700;font-size:14px;color:var(--brand)">fetal-echo.org</div>
       <div style="font-size:12px">Pediatric Echo Z-Score Calculator · v1.0</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">by Dr. Mridul Agarwal</div>
       <div style="margin-top:4px;font-size:11px">
         <a href="https://fetal-echo.org" target="_blank" style="color:var(--brand);text-decoration:none">fetal-echo.org</a>
         &nbsp;·&nbsp;
@@ -1430,6 +1434,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   document.head.appendChild(s);
 })();
+
+/* QR code — generated locally, no external API */
+window.addEventListener('load', function(){
+  var url = 'https://drmridulagarwal.github.io/fetal-echo-calculators/pediatric-echo-zscore-calculator.html';
+  ['_qrped','qr-footer'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && typeof QRCode !== 'undefined'){
+      el.innerHTML = '';
+      new QRCode(el, {text: url, width: 72, height: 72, correctLevel: QRCode.CorrectLevel.L});
+    }
+  });
+});
 </script>
 </body>
 </html>
