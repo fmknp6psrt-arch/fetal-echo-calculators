@@ -264,8 +264,8 @@
           <div class="z na">Retrograde/absent → severe obstruction or HLHS/IAA</div>
         </div>
         <div class="field">
-          <label>LV global longitudinal strain <span class="u">% · negative, e.g. −15</span></label>
-          <input id="gls" type="number" step="0.1" max="0" inputmode="decimal" placeholder="%">
+          <label>LV global longitudinal strain <span class="u">% · enter negative value, e.g. −15</span></label>
+          <input id="gls" type="text" inputmode="decimal" placeholder="−%" autocomplete="off">
           <div class="z na" id="gls_z">Speckle tracking. Less negative = worse</div>
         </div>
       </div>
@@ -459,7 +459,7 @@ const NOM = {
   aoi3:(mm,ga)=>zPasquini(mm,ga,1.223608,-2.822,0.16424),   // PAS_GA i3vt — Pasquini 2007
   aois:(mm,ga)=>zPasquini(mm,ga,1.109503,-2.489632,0.18183), // PAS_GA isag — Pasquini 2007
   da:  (mm,ga)=>zPasquini(mm,ga,1.396496,-3.359462,0.17569), // PAS_GA duct — Pasquini 2007
-  gls: (pct,ga)=>{ if(pct==null||ga==null) return null; return (pct-(-26.73+0.2024*ga))/2.1; },
+  gls: (pct,ga)=>{ if(pct==null||ga==null) return null; return ((-26.73+0.2024*ga)-pct)/2.1; }, // van Oostrum 2022: Z<0 = less negative than expected = worse function
   // Ventricular dimensions — García-Otero 2020 (Fetal Diagn Ther, doi:10.1159/000494838)
   lvmt:(mm,ga)=>{ if(mm==null||ga==null||mm<=0) return null; const E=-13.84612225+1.260434429*ga-0.013971851*ga*ga; const S=-0.146296793+0.063289207*ga; return S>0?(mm-E)/S:null; },
   rvmt:(mm,ga)=>{ if(mm==null||ga==null||mm<=0) return null; const E=-14.41113899+1.279292585*ga-0.013661007*ga*ga; const S=0.002076007+0.057502992*ga; return S>0?(mm-E)/S:null; },
@@ -481,7 +481,7 @@ function compute(){
     aao:num(val('aao')), aoi3:num(val('aoi3')), taa:num(val('taa')),
     aois:num(val('aois')), da:num(val('da')), dao:num(val('dao')), lca:num(val('lca')),
     lved:num(val('lved')), rved:num(val('rved')),
-    lvlo:num(val('lvlo')), rvlo:num(val('rvlo')), gls:num(val('gls'))
+    lvlo:num(val('lvlo')), rvlo:num(val('rvlo')), gls:num(val('gls').replace(/^(\d)/,'-$1'))
   };
   const sel = {
     isth:val('isth'), fo:val('fo'), arch:val('arch'),
@@ -526,7 +526,7 @@ function compute(){
   add(idMvtv!=null  && idMvtv<0.37,   idMvtv!=null,  3, 'I/D × MV/TV < 0.37', 'Fricke 2020');
   add(Z.aois!=null  && Z.aois<=-2,    Z.aois!=null,  2, 'Aortic isthmus (sagittal) Z ≤ −2', 'Pasquini 2007');
   add(sel.isth==='2', sel.isth!=='', 2, 'Isthmus systolic flow reversal', 'Chen 2024 (tier)');
-  add(Zgls!=null && Zgls>0, Zgls!=null, 1.5, 'Reduced LV strain (Z > 0)', 'Liu 2022 (OR 1.79)');
+  add(Zgls!=null && Zgls<0, Zgls!=null, 1.5, 'Reduced LV strain (Z < 0)', 'Liu 2022 (OR 1.79)');
   add(lvrv!=null && lvrv<0.75 && lvrv>=0.6, lvrv!=null, 1, 'LV/RV 0.60–0.75 (borderline)', 'Quartermain 2009');
 
   const got = rules.filter(r=>r.hit);
@@ -630,7 +630,7 @@ function render(){
   setZ('aoi3_z', r.Z.aoi3, z=>z<=-2);
   setZ('aois_z', r.Z.aois, z=>z<=-2);
   setZ('da_z',   r.Z.da,   z=>z<-2);
-  setZ('gls_z',  r.Zgls,   z=>z>0);
+  setZ('gls_z',  r.Zgls,   z=>z<0);
   setZ('lved_z', r.Z.lvmt, z=>z<=-2);
   setZ('rved_z', r.Z.rvmt, z=>z<=-2);
   setZ('lvlo_z', r.Z.lvlo, z=>z<=-2);
@@ -718,8 +718,8 @@ const RF_EXPLAIN = {
     'The aortic isthmus measured in the sagittal plane. Confirming isthmus hypoplasia in a second orthogonal view increases diagnostic confidence and reduces measurement error from a single angle (Pasquini 2007).',
   'Isthmus systolic flow reversal':
     'On pulsed-wave Doppler at the isthmus (proximal to the ductal insertion), normal flow is antegrade throughout the cardiac cycle. Systolic reversal indicates that the left heart cannot overcome the resistance of a severely narrowed isthmus — a late, high-specificity finding for significant CoA.',
-  'Reduced LV strain (Z > 0)':
-    'LV global longitudinal strain (GLS) measures myocardial deformation. In a normal fetus GLS is strongly negative (typically around −27%). A Z-score above 0 means the measured GLS is less negative than expected — indicating the LV myocardium is working harder and deforming less, consistent with functional compromise from outflow obstruction (Liu 2022, OR 1.79 per unit).',
+  'Reduced LV strain (Z < 0)':
+    'LV global longitudinal strain (GLS) measures myocardial deformation. In a normal fetus GLS is strongly negative (typically around −21 to −27%). A Z-score below 0 means the measured GLS is less negative than expected for the gestation — indicating the LV myocardium is deforming less than its peers, consistent with functional compromise from outflow obstruction (Liu 2022, OR 1.79 per unit). Enter as a negative value, e.g. −15.',
   'LV/RV 0.60–0.75 (borderline)':
     'The ratio of LV to RV mid-transverse width. A ratio in the 0.60–0.75 range indicates borderline right-heart dominance. Values below 0.6 are more concerning for significant left-heart underdevelopment approaching the HLHS spectrum.'
 };
@@ -838,8 +838,22 @@ document.getElementById('printBtn').addEventListener('click', ()=>window.print()
 document.getElementById('resetBtn').addEventListener('click', ()=>{
   document.querySelectorAll('input').forEach(i=>i.value='');
   document.querySelectorAll('select').forEach(s=>s.selectedIndex=0);
+  document.getElementById('gls').value = '-'; // restore minus after reset
   render();
 });
+/* GLS input: pre-fill minus sign and auto-negate accidental positive entries */
+(function(){
+  const g = document.getElementById('gls');
+  g.value = '-';
+  g.addEventListener('input', function(){
+    const v = this.value;
+    if(v === '') { this.value = '-'; render(); return; }
+    if(/^\d/.test(v)){ this.value = '-' + v; render(); }
+  });
+  g.addEventListener('blur', function(){
+    if(this.value === '-' || this.value === '') this.value = '-';
+  });
+})();
 document.querySelectorAll('input,select').forEach(el=>{
   el.addEventListener('input', render); el.addEventListener('change', render);
 });
