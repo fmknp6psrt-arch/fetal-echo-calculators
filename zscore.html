@@ -169,6 +169,9 @@
     <p class="hint">Parameters that fall outside the reference range are flagged here, most abnormal first.
       <b>|Z| ≥ 2</b> = outside the 95% range (red); <b>|Z| 1.5–2</b> = borderline (orange).</p>
     <div class="findings" id="findingsList"><div class="empty">Enter measurements above — flagged results will appear here.</div></div>
+    <div class="sec-note" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+      <b>Interpretation note:</b> Suggestions above are per individual parameter. Combinations matter — e.g. a dilated MPA with elevated combined CO indexed value suggests a <em>high-output state</em> (AV fistula, anaemia, sacrococcygeal teratoma) rather than obstruction. A dilated MPA with a small pulmonary valve and RV enlargement favours post-stenotic PS. Always correlate with Doppler, serial measurements, and clinical context.
+    </div>
     <div class="btns">
       <a class="btn" href="index.html" style="text-decoration:none">← All Calculators</a>
       <button class="btn primary" onclick="generatePrint()">Generate printable PDF</button>
@@ -202,13 +205,20 @@ function erf(x){ // Abramowitz-Stegun 7.1.26
 const normsdist = z => 0.5*(1+erf(z/Math.SQRT2));
 const ln = Math.log;
 function num(id){ const v=parseFloat($(id).value); return isFinite(v)?v:NaN; }
+/* reads first finite value from a list of field IDs — used for shared fields across sections */
+function numOr(...ids){ for(const id of ids){ const el=$(id); if(!el) continue; const v=parseFloat(el.value); if(isFinite(v)) return v; } return NaN; }
 
 /* shared context */
 function ctx(){
   const w=num('gaW'), d=num('gaD');
   const GA = isFinite(w)? w + (isFinite(d)?d:0)/7 : NaN;
   const EFWg = num('efw');
-  return { GA, BPD:num('bpd'), FL:num('fl'), EFWg, EFWkg: isFinite(EFWg)?EFWg/1000:NaN, HR:num('hr') };
+  /* estimated mean EFW from GA alone (50th centile approximation, fit to INTERGROWTH-21st) */
+  const EFWest = isFinite(GA) ? Math.exp(1.377 + 0.270*GA - 0.00249*GA*GA) : NaN;
+  const EFWkg_actual = isFinite(EFWg) ? EFWg/1000 : NaN;
+  /* use entered EFW when available; fall back to GA-estimated weight for CO indexing */
+  const EFWkg = isFinite(EFWkg_actual) ? EFWkg_actual : (isFinite(EFWest) ? EFWest/1000 : NaN);
+  return { GA, BPD:num('bpd'), FL:num('fl'), EFWg, EFWkg, EFWkg_actual, EFWest, EFWestimated:(!isFinite(EFWg)&&isFinite(EFWest)), HR:num('hr') };
 }
 
 /* z-score constructors. Each returns {z, mean(optional in observed units)} given observed value */
@@ -304,10 +314,10 @@ const schLabel=Object.fromEntries(schItems), pasLabel=Object.fromEntries(pasItem
 const NOTE = {
  aov:['small aortic valve — consider LVOTO / critical AS / hypoplastic left heart spectrum','large aortic valve — consider post-stenotic dilatation or outflow anomaly'],
  mv:['small mitral valve — consider left-heart hypoplasia / mitral stenosis or atresia','large mitral valve — uncommon; reassess measurement'],
- tv:['small tricuspid valve — consider RV hypoplasia / pulmonary atresia–IVS','large tricuspid valve — consider Ebstein / TR / RV volume load'],
- pv:['small pulmonary valve — consider pulmonary stenosis / atresia / RVOTO','large pulmonary valve — consider post-stenotic or absent-pulmonary-valve dilatation'],
- aao:['narrow ascending aorta — left-heart obstruction spectrum','dilated ascending aorta — consider AS / conotruncal anomaly'],
- mpa:['narrow main pulmonary artery — RVOTO spectrum','dilated MPA — pulmonary stenosis / absent PV'],
+ tv:['small tricuspid valve — consider RV hypoplasia / pulmonary atresia–IVS','large tricuspid valve — consider Ebstein / TR / RV volume load or high-output state'],
+ pv:['small pulmonary valve — consider pulmonary stenosis / atresia / RVOTO','large pulmonary valve — consider absent-pulmonary-valve syndrome, post-stenotic PS, or high-output state'],
+ aao:['narrow ascending aorta — left-heart obstruction spectrum','dilated ascending aorta — consider AS / conotruncal anomaly; if both great arteries enlarged, consider high-output state (AV fistula, fetal anaemia, sacrococcygeal teratoma)'],
+ mpa:['narrow main pulmonary artery — RVOTO spectrum (PS, PA, critical PS)','dilated MPA — consider: (1) PS post-stenotic dilatation; (2) absent PV syndrome; (3) high-output state — AV fistula, sacrococcygeal teratoma, fetal anaemia (check combined CO indexed value above)'],
  i3vt:['small aortic isthmus — supports risk of coarctation / arch hypoplasia','large isthmus — reassess'],
  isag:['small sagittal isthmus — supports coarctation risk','large isthmus — reassess'],
  dao:['small descending aorta — left-heart obstruction','dilated descending aorta — reassess'],
@@ -331,7 +341,8 @@ function noteFor(key,z){ const n=NOTE[key]; if(!n) return (z<0?'below':'above')+
 
 /* ---------- registry of all live results for findings ---------- */
 const RESULTS = {}; // id -> {label, val, z, group}
-function setResult(id,label,group,val,z){ if(z==null||!isFinite(z)){ delete RESULTS[id]; } else { RESULTS[id]={label,group,val,z,key:id.split('::').pop()}; } }
+/* store when val is valid; z may be null (shown as '—' in report); delete when val is missing */
+function setResult(id,label,group,val,z){ if(val==null||!isFinite(val)){ delete RESULTS[id]; } else { RESULTS[id]={label,group,val,z:(z!=null&&isFinite(z)?z:null),key:id.split('::').pop()}; } }
 
 /* ---------- UI builders ---------- */
 function measRow(uid,label,unit,key){
@@ -428,7 +439,7 @@ function buildSections(){
   // DeVore ratios
   h+=`<details class="sec"><summary>Ratios &amp; shape — DeVore <span class="cv" id="cv_dv"></span></summary>
    <div class="sec-body">
-     <div class="sec-note">Cardiothoracic ratio, chamber-area ratios, sphericity &amp; RV:LV ratios (DeVore 2017–18). Areas in cm², diameters in mm.</div>
+     <div class="sec-note">Cardiothoracic ratio, chamber-area ratios, sphericity &amp; RV:LV ratios (DeVore 2017–18). Areas in cm², diameters in mm. <b>Auto-populated from the Chambers &amp; walls section</b> where the same measurement exists — you only need to enter thoracic area here (and override any field if your DeVore measurement differs).</div>
      <div class="grid">
        <div class="field"><label>Cardiac area <span class="u">cm²</span></label><input id="in_dvca" type="number" step="0.01" inputmode="decimal"></div>
        <div class="field"><label>Thoracic area <span class="u">cm²</span></label><input id="in_dvta" type="number" step="0.01" inputmode="decimal"></div>
@@ -571,8 +582,21 @@ function recompute(){
     if(isFinite(svR)&&HR>0){co+=svR*HR;any=true;}
     if(isFinite(svL)&&HR>0){co+=svL*HR;any=true;}
     let out='';
-    if(any){ out=`Combined CO ${co.toFixed(0)} mL/min`; if(isFinite(c.EFWkg)&&c.EFWkg>0){ const idx=co/c.EFWkg; const flag=idx<425?' — below reference':(idx>550?' — above reference':' — within 425–550'); out+=` · indexed ${idx.toFixed(0)} mL/min/kg<b>${flag}</b>`; } else out+=' · enter EFW & HR to index'; }
-    else out='Enter outflow diameter, VTI and heart rate.';
+    if(any){
+      out=`Combined CO <b>${co.toFixed(0)} mL/min</b>`;
+      if(isFinite(c.EFWkg)&&c.EFWkg>0){
+        const idx=co/c.EFWkg;
+        const flagCls=idx<425?'color:var(--bad)':(idx>550?'color:var(--bad)':'color:var(--ok)');
+        const flagTxt=idx<425?'⚠ below 425 — HIGH OUTPUT may be masked by low weight; or low flow':(idx>550?'⚠ above 550 — elevated; consider high-output state':'within 425–550 mL/min/kg');
+        const wSrc = c.EFWestimated
+          ? ` <span style="color:var(--muted);font-size:11px">(estimated weight ${c.EFWest.toFixed(0)} g for GA ${c.GA.toFixed(1)}w — enter actual EFW for accuracy)</span>`
+          : ` <span style="color:var(--muted);font-size:11px">(EFW ${c.EFWg} g entered)</span>`;
+        out+=` · indexed <b>${idx.toFixed(0)} mL/min/kg</b> <span style="${flagCls}">${flagTxt}</span>${wSrc}`;
+        setResult('co_idx','Combined CO indexed (mL/min/kg)','Cardiac output',idx,null);
+      } else {
+        out+=' · enter GA or EFW to index by weight';
+      }
+    } else out='Enter RVOT/LVOT diameter, VTI and heart rate above.';
     $('coOut').innerHTML=out;
   })();
   // DeVore ratios
@@ -581,9 +605,12 @@ function recompute(){
     if(isFinite(ratio)){ val=ratio; const tr=t(ratio); const e=E(c.GA), s=S(c.GA); if(isFinite(tr)&&isFinite(e)&&isFinite(s)&&s!==0&&isFinite(c.GA)) z=(tr-e)/s; }
     $(vId).textContent=isFinite(val)?val.toFixed(3):'—'; paintZ(zId,z); setResult(key,label,'Ratios & shape',isFinite(val)?val:null,z);
   }
-  const ca=num('in_dvca'),ta=num('in_dvta'),cl=num('in_dvcl'),ct=num('in_dvct'),
-        rvb=num('in_dvrvb'),lvb=num('in_dvlvb'),rvm=num('in_dvrvm'),lvm=num('in_dvlvm'),
-        laa=num('in_dvlaa'),raa=num('in_dvraa');
+  /* DeVore inputs fall back to BCN section values where the same measurement exists */
+  const ca =numOr('in_dvca','in_bcn_ca'),   ta =num('in_dvta'),
+        cl =numOr('in_dvcl','in_bcn_cld'),  ct =numOr('in_dvct','in_bcn_ctd'),
+        rvb=numOr('in_dvrvb','in_bcn_rvbt'),lvb=numOr('in_dvlvb','in_bcn_lvbt'),
+        rvm=numOr('in_dvrvm','in_bcn_rvmt'),lvm=numOr('in_dvlvm','in_bcn_lvmt'),
+        laa=numOr('in_dvlaa','in_bcn_laa'), raa=numOr('in_dvraa','in_bcn_raa');
   dv('ctr','dv_v_ctr','z_dv_ctr','Cardiothoracic ratio',(ca>0&&ta>0)?ca/ta:NaN,IDENT,GA=>0.0218234531638563+0.0132424164402212*GA-0.000170489*GA*GA,GA=>0.000584193807423579*GA+0.0191096898080152);
   dv('laca','dv_v_laca','z_dv_laca','LA / heart area',(laa>0&&ca>0)?laa/ca:NaN,LNT,()=>-1.915712,()=>0.251307);
   dv('raca','dv_v_raca','z_dv_raca','RA / heart area',(raa>0&&ca>0)?raa/ca:NaN,SQRTT,()=>0.390891,()=>0.047321);
@@ -700,16 +727,18 @@ function generatePrint(){
   const dateStr=now.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
   const arr=Object.values(RESULTS).filter(r=>r.val!=null&&isFinite(r.val));
   // group ordering
-  const order=['Valves & vessels','Isthmus & duct','Chambers & walls','RV function','Time fractions','Ratios & shape'];
+  const order=['Core','Valves & vessels','Isthmus & duct','Chambers & walls','RV function','Time fractions','Ratios & shape','Cardiac output'];
   let rows='';
   order.forEach(g=>{
     const items=arr.filter(r=>r.group===g);
     if(!items.length)return;
     rows+=`<tr><td colspan="4" class="pgl">${g}</td></tr>`;
     items.forEach(r=>{
-      const a=Math.abs(r.z); const cls=a>=2?'pbad':(a>=1.5?'pbord':'');
-      const flag=a>=2?'Out of range':(a>=1.5?'Borderline':'Within range');
-      rows+=`<tr><td>${r.label}</td><td class="r">${r.val.toFixed(2)}</td><td class="r ${cls}">${isFinite(r.z)?fmtZ(r.z):'—'}</td><td class="${cls}">${isFinite(r.z)?flag:''}</td></tr>`;
+      const zOk=r.z!=null&&isFinite(r.z);
+      const a=zOk?Math.abs(r.z):-1;
+      const cls=a>=2?'pbad':(a>=1.5?'pbord':'');
+      const flag=zOk?(a>=2?'Out of range':(a>=1.5?'Borderline':'Within range')):(g==='Cardiac output'?'Ref: 425–550 mL/min/kg':'—');
+      rows+=`<tr><td>${r.label}</td><td class="r">${r.val.toFixed(2)}</td><td class="r ${cls}">${zOk?fmtZ(r.z):'—'}</td><td class="${cls}">${flag}</td></tr>`;
     });
   });
   if(!rows) rows='<tr><td colspan="4">No measurements entered.</td></tr>';
