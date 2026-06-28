@@ -915,8 +915,8 @@ function renderZ(elId, z, kawa) {
   const cls = zCls(z);
   const a = Math.abs(z);
   const tCls = a >= 2 ? 't-bad' : a >= 1.5 ? 't-bord' : 't-ok';
-  const tTxt = a >= 2 ? 'Abnormal' : a >= 1.5 ? 'Borderline' : 'Normal';
-  let html = `<span class="zval">Z ${fmtZ(z)}</span><span class="tag ${tCls}">${tTxt}</span>`;
+  const tTxt = a >= 2 ? 'OUT OF RANGE' : '';
+  let html = `<span class="zval">Z ${fmtZ(z)}</span>${tTxt ? `<span class="tag ${tCls}">${tTxt}</span>` : ''}`;
   if (kawa && kawa.txt) {
     html += `<br><span class="tag t-${kawa.cls}" style="margin-top:3px">${kawa.txt}</span>`;
   }
@@ -942,15 +942,15 @@ function renderRange(elId, val, unit, normalLow, borderLow, higherBetter) {
   let cls, tCls, tTxt;
   if (higherBetter) {
     cls = val >= normalLow ? 'ok' : val >= borderLow ? 'bord' : 'bad';
-    tTxt = val >= normalLow ? 'Normal' : val >= borderLow ? 'Borderline' : 'Low';
+    tTxt = val >= normalLow ? '' : val >= borderLow ? '' : 'Low';
   } else {
     // lower is worse (e.g., strain absolute value)
     cls = val >= normalLow ? 'ok' : val >= borderLow ? 'bord' : 'bad';
-    tTxt = val >= normalLow ? 'Normal' : val >= borderLow ? 'Borderline' : 'Low';
+    tTxt = val >= normalLow ? '' : val >= borderLow ? '' : 'Low';
   }
   tCls = 't-' + cls;
   el.className = 'zbox ' + cls;
-  el.innerHTML = `<span class="zval">${val.toFixed(1)} ${unit}</span><span class="tag ${tCls}">${tTxt}</span>`;
+  el.innerHTML = `<span class="zval">${val.toFixed(1)} ${unit}</span>${tTxt ? `<span class="tag ${tCls}">${tTxt}</span>` : ''}`;
 }
 
 /* ── global results store (for findings panel + print) ── */
@@ -1355,9 +1355,9 @@ function generatePrint() {
              : isLvmiElev               ? 'Eccentric Hypertrophy'
              : isConcGeom               ? 'Concentric Remodelling'
              : 'Normal Geometry';
-        if (deSimoneAlert) geom += ' · CRITICAL: LVMI ≥ 51';
+        if (deSimoneAlert) geom += ' · LVMI ≥ 51';
       }
-      derivedHtml += `<tr><td>LVMI height²·⁷ (De Simone)</td><td class="r">${lvmiHt.toFixed(1)}</td><td>g/m²·⁷</td><td class="${deSimoneAlert?'pbad':isLvmiElev?'pbord':''}">Khoury 95th: ${lvmiThresh.toFixed(1)}${deSimoneAlert?' ⚠ ≥51':''}</td></tr>`;
+      derivedHtml += `<tr><td>LVMI height²·⁷ (De Simone)</td><td class="r">${lvmiHt.toFixed(1)}</td><td>g/m²·⁷</td><td class="${deSimoneAlert?'pbad':isLvmiElev?'pbord':''}">Khoury 95th: ${lvmiThresh.toFixed(1)}</td></tr>`;
       if (isFinite(rwt)) derivedHtml += `<tr><td>RWT (2×LVPWd/LVIDd)</td><td class="r">${rwt.toFixed(2)}</td><td></td><td class="${isConcGeom?'pbord':''}">Paed concentric ≥ 0.38</td></tr>`;
       derivedHtml += `<tr><td>LV Geometry (Khoury)</td><td colspan="3" class="${geom.includes('CRITICAL')||geom.includes('Hypertrophy')?'pbad':geom.includes('Remodel')?'pbord':''}">${geom}</td></tr>`;
     }
@@ -1367,19 +1367,6 @@ function generatePrint() {
   }
   if (derivedHtml) tableHtml += `<tr><td colspan="4" class="pgl">Derived values</td></tr>${derivedHtml}`;
   if (!tableHtml) tableHtml = '<tr><td colspan="4" style="color:#888;font-style:italic">No measurements entered.</td></tr>';
-
-  /* ── Flagged summary ── */
-  const flagged = Object.values(RESULTS)
-    .filter(r => r.z !== null && isFinite(r.z) && Math.abs(r.z) >= 1.5)
-    .sort((a,b) => Math.abs(b.z) - Math.abs(a.z));
-  const flagHtml = flagged.length
-    ? '<ul style="margin:4px 0 0;padding-left:16px">'
-      + flagged.map(r => {
-          const a = Math.abs(r.z);
-          const kw = r.kawa && r.kawa.txt ? ` · ${r.kawa.txt}` : '';
-          return `<li class="${a>=2?'pbad':'pbord'}">${r.label}: Z ${fmtZ(r.z)}${kw}</li>`;
-        }).join('') + '</ul>'
-    : '<p style="margin:4px 0;font-style:italic;font-size:11px">All entered parameters with available z-scores are within the reference range.</p>';
 
   const refLine = corRef === 'boston'
     ? 'Coronary z-scores: McCrindle 2007 (Boston); LCx: Dallaire 2011 (Montreal). M-mode: Kampmann 2000.'
@@ -1399,14 +1386,11 @@ function generatePrint() {
   <tbody>${tableHtml}</tbody>
 </table>
 
-<div class="pgl" style="margin-top:8px">Flagged parameters (|Z| ≥ 1.5)</div>
-${flagHtml}
-
 <div class="pr-footer">
   ${window._qrDataUrl ? `<img src="${window._qrDataUrl}" width="52" height="52" style="border:1px solid #e5ebf2;border-radius:3px" alt="QR">` : ''}
   <div>
     <p class="pnote">${refLine}</p>
-    <p class="pnote">Clinical decision-support only — not a diagnostic tool. Verify measurements against original publications before clinical use. &nbsp;·&nbsp; <b>fetal-echo.org</b></p>
+    <p class="pnote">For clinical interpretation, please discuss with your specialist. &nbsp;·&nbsp; <b>fetal-echo.org</b></p>
   </div>
 </div>`;
 
